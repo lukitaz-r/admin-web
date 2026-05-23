@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server.js';
-import { encryptSession } from '../../../utils/session.js';
+import { encryptSession } from '../../../../utils/session.js';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);

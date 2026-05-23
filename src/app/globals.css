@@ -121,3 +121,102 @@ code, pre, textarea.code-font {
   pointer-events: none;
   animation: pulseGlow 12s ease-in-out infinite;
 }
+
+/* Landing Page Styles */
+.landing-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.landing-card {
+  width: 100%;
+  max-width: 480px;
+  padding: 48px 40px;
+  text-align: center;
+  border-radius: 16px;
+}
+
+.branding {
+  margin-bottom: 32px;
+}
+
+.logo {
+  font-size: 3.5rem;
+  font-weight: 900;
+  letter-spacing: 6px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 4px;
+  color: var(--text-secondary);
+}
+
+.description {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.error-alert {
+  background: rgba(255, 42, 95, 0.08);
+  border: 1px solid rgba(255, 42, 95, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 12px;
+  animation: fadeIn 0.4s ease;
+}
+
+.error-icon {
+  font-size: 1.25rem;
+}
+
+.error-text {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #ff5c81;
+  line-height: 1.4;
+}
+
+.login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  background: transparent;
+  border: 2px solid var(--rose-neon);
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  transition: var(--transition-smooth);
+  box-shadow: 0 0 10px rgba(255, 42, 95, 0.1);
+}
+
+.login-btn:hover {
+  background: var(--rose-neon);
+  color: #000000;
+  box-shadow: var(--rose-glow);
+  transform: translateY(-2px);
+}
+
+.discord-logo {
+  width: 20px;
+  height: 20px;
+}
