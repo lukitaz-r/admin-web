@@ -45,10 +45,6 @@ export default async function Home({ searchParams }) {
           <h2 className="subtitle">SISTEMA CENTRAL DE CONTROL</h2>
         </div>
 
-        <p className="description">
-          Portal exclusivo para administradores autorizados. Permite la visualización de colecciones de datos, copias de seguridad de GitHub y edición CRUD en tiempo real.
-        </p>
-
         {errorMessage && (
           <div className="error-alert">
             <div className="error-icon">⚠️</div>

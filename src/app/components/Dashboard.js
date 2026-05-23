@@ -3,8 +3,280 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LogOut, Database, Search, Plus, Edit, Trash2, 
-  Save, X, RefreshCw, AlertTriangle, Check, User 
+  Save, X, RefreshCw, AlertTriangle, Check, User,
+  Folder, FolderOpen, FileText, ChevronDown, ChevronRight
 } from 'lucide-react/dist/cjs/lucide-react';
+
+// Helper to recursively update a value in a nested object
+function setNestedValue(obj, path, value) {
+  if (path.length === 0) return value;
+  
+  const isArray = Array.isArray(obj);
+  const newObj = isArray ? [...obj] : { ...obj };
+  
+  const [head, ...tail] = path;
+  newObj[head] = setNestedValue(obj[head], tail, value);
+  return newObj;
+}
+
+// VS Code themed JSON Syntax Highlighter
+function JsonHighlighter({ data }) {
+  const jsonString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  
+  const highlighted = useMemo(() => {
+    if (!jsonString) return '';
+    
+    let escaped = jsonString
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+      
+    return escaped.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+      (match) => {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'json-key';
+          } else {
+            cls = 'json-string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return `<span class="${cls}">${match}</span>`;
+      }
+    );
+  }, [jsonString]);
+
+  return (
+    <pre className="vscode-editor-pre">
+      <code dangerouslySetInnerHTML={{ __html: highlighted }} />
+    </pre>
+  );
+}
+
+// Recursive Visual Schema Editor for nested objects
+function NestedObjectEditor({ path, value, onChange, level = 0 }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  if (value === null || value === undefined) {
+    const label = path[path.length - 1];
+    const displayLabel = isNaN(label) ? label : `Elemento ${Number(label) + 1}`;
+    return (
+      <div className="editor-field-card primitive-card animate-fade-in">
+        <div className="nested-field-row">
+          <div className="field-label-container">
+            <FileText size={14} className="file-icon text-muted" />
+            <span className="nested-field-label">{displayLabel}:</span>
+          </div>
+          <span className="empty-cell">Nulo</span>
+        </div>
+      </div>
+    );
+  }
+
+  const isArray = Array.isArray(value);
+  const isObject = typeof value === 'object' && !isArray;
+
+  if (isObject) {
+    const title = path.length === 0 
+      ? 'Objeto Principal' 
+      : (isNaN(path[path.length - 1]) ? path[path.length - 1] : `Elemento ${Number(path[path.length - 1]) + 1}`);
+      
+    return (
+      <div className={`nested-object-box level-${level % 3} ${isCollapsed ? 'collapsed' : ''}`}>
+        <div className="nested-object-header clickable-header" onClick={() => setIsCollapsed(!isCollapsed)}>
+          <div className="header-left">
+            {isCollapsed ? (
+              <>
+                <ChevronRight size={14} className="folder-chevron" />
+                <Folder size={16} className="folder-icon-main" />
+              </>
+            ) : (
+              <>
+                <ChevronDown size={14} className="folder-chevron" />
+                <FolderOpen size={16} className="folder-icon-main folder-open" />
+              </>
+            )}
+            <span className="nested-object-title">{title}</span>
+          </div>
+          <span className="folder-type-badge">objeto</span>
+        </div>
+        {!isCollapsed && (
+          <div className="nested-object-body animate-fade-in">
+            {Object.entries(value).map(([childKey, childVal]) => (
+              <NestedObjectEditor
+                key={childKey}
+                path={[...path, childKey]}
+                value={childVal}
+                onChange={onChange}
+                level={level + 1}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (isArray) {
+    const title = path.length === 0 
+      ? 'Lista (Array)' 
+      : (isNaN(path[path.length - 1]) ? path[path.length - 1] : `Elemento ${Number(path[path.length - 1]) + 1}`);
+
+    const handleRemoveArrayItem = (index) => {
+      const newValue = value.filter((_, i) => i !== index);
+      onChange(path, newValue);
+    };
+
+    const handleAddArrayItem = () => {
+      let newItem = '';
+      if (value.length > 0) {
+        const template = value[0];
+        if (typeof template === 'object' && template !== null) {
+          newItem = Array.isArray(template) ? [] : JSON.parse(JSON.stringify(template));
+        } else if (typeof template === 'number') {
+          newItem = 0;
+        } else if (typeof template === 'boolean') {
+          newItem = false;
+        } else {
+          newItem = '';
+        }
+      }
+      const newValue = [...value, newItem];
+      onChange(path, newValue);
+    };
+
+    return (
+      <div className={`nested-object-box array-box level-${level % 3} ${isCollapsed ? 'collapsed' : ''}`}>
+        <div className="nested-object-header array-header clickable-header" onClick={() => setIsCollapsed(!isCollapsed)}>
+          <div className="header-left">
+            {isCollapsed ? (
+              <>
+                <ChevronRight size={14} className="folder-chevron" />
+                <Folder size={16} className="folder-icon-main" />
+              </>
+            ) : (
+              <>
+                <ChevronDown size={14} className="folder-chevron" />
+                <FolderOpen size={16} className="folder-icon-main folder-open" />
+              </>
+            )}
+            <span className="nested-object-title">{title}</span>
+          </div>
+          <span className="folder-type-badge array-badge">{value.length} elementos</span>
+        </div>
+        {!isCollapsed && (
+          <div className="nested-object-body array-body animate-fade-in">
+            {value.map((childVal, index) => (
+              <div key={index} className="array-item-wrapper animate-fade-in">
+                <div className="array-item-content">
+                  <NestedObjectEditor
+                    path={[...path, String(index)]}
+                    value={childVal}
+                    onChange={onChange}
+                    level={level + 1}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="array-item-delete-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveArrayItem(index);
+                  }}
+                  title="Eliminar elemento"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn sec-btn btn-sm add-array-item-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddArrayItem();
+              }}
+            >
+              <Plus size={14} /> Agregar Elemento
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const label = path[path.length - 1];
+  const displayLabel = isNaN(label) ? label : `Elemento ${Number(label) + 1}`;
+
+  if (typeof value === 'boolean') {
+    return (
+      <div className="editor-field-card primitive-card animate-fade-in">
+        <div className="nested-field-row checkbox-row">
+          <div className="field-label-container">
+            <FileText size={14} className="file-icon text-muted" />
+            <span className="nested-field-label">{displayLabel}</span>
+          </div>
+          <div className="field-input-wrapper">
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={value}
+                onChange={e => onChange(path, e.target.checked)}
+                className="toggle-input"
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (typeof value === 'number') {
+    return (
+      <div className="editor-field-card primitive-card animate-fade-in">
+        <div className="nested-field-row">
+          <div className="field-label-container">
+            <FileText size={14} className="file-icon text-muted" />
+            <label className="nested-field-label">{displayLabel}</label>
+          </div>
+          <div className="field-input-wrapper">
+            <input
+              type="number"
+              value={value}
+              onChange={e => onChange(path, Number(e.target.value))}
+              className="form-input nested-input"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="editor-field-card primitive-card animate-fade-in">
+      <div className="nested-field-row">
+        <div className="field-label-container">
+          <FileText size={14} className="file-icon text-muted" />
+          <label className="nested-field-label">{displayLabel}</label>
+        </div>
+        <div className="field-input-wrapper">
+          <input
+            type="text"
+            value={value}
+            onChange={e => onChange(path, e.target.value)}
+            className="form-input nested-input"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard({ user }) {
   const [collections, setCollections] = useState([]);
@@ -17,6 +289,61 @@ export default function Dashboard({ user }) {
   const [editingDoc, setEditingDoc] = useState(null); // Document currently being edited
   const [isNewDoc, setIsNewDoc] = useState(false); // Creating a new document
   const [statusMessage, setStatusMessage] = useState(null); // Success/Error alert status
+  
+  // Active editor modes ('visual' | 'raw') for complex JSON keys
+  const [editorModes, setEditorModes] = useState({});
+
+  const handleNestedFieldChange = (parentKey, path, newValue) => {
+    setEditingDoc(prev => {
+      const parentVal = prev[parentKey] || {};
+      const updatedParentVal = setNestedValue(parentVal, path, newValue);
+      return {
+        ...prev,
+        [parentKey]: updatedParentVal,
+        [`_raw_${parentKey}`]: JSON.stringify(updatedParentVal, null, 2)
+      };
+    });
+  };
+
+  // Offline-first and Concurrency Control States
+  const [isOnline, setIsOnline] = useState(true);
+  const [originalDocState, setOriginalDocState] = useState(null);
+  const [draftDetected, setDraftDetected] = useState(null); // { doc, original }
+  const [conflictModal, setConflictModal] = useState(null); // { serverDoc, userDoc }
+
+  // Monitor network status
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => {
+      setIsOnline(true);
+      showStatus('success', 'Conexión restablecida. Sincronización activa.');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showStatus('error', 'Sin conexión a internet. Guardados bloqueados.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Auto-save drafts to localStorage
+  useEffect(() => {
+    if (editingDoc && selectedCollection) {
+      const docId = editingDoc._id || 'new';
+      localStorage.setItem(`platubot_draft_${selectedCollection}_${docId}`, JSON.stringify(editingDoc));
+    }
+  }, [editingDoc, selectedCollection]);
+
+  const clearDraft = (colName, id) => {
+    const docId = id || 'new';
+    localStorage.removeItem(`platubot_draft_${colName}_${docId}`);
+  };
   
   // Double Verification Security States
   const [securityModal, setSecurityModal] = useState({
@@ -96,11 +423,29 @@ export default function Dashboard({ user }) {
   }, [documents, searchQuery]);
 
   // Form handling functions
+  // Form handling functions
   const handleOpenEdit = (doc) => {
     // Clone doc without private attributes
     const cleanDoc = { ...doc };
     delete cleanDoc._modelInfo;
-    setEditingDoc(cleanDoc);
+
+    // Store original document state for concurrency comparison
+    setOriginalDocState(JSON.parse(JSON.stringify(cleanDoc)));
+
+    const docId = cleanDoc._id || 'new';
+    const draftKey = `platubot_draft_${selectedCollection}_${docId}`;
+    const savedDraft = localStorage.getItem(draftKey);
+
+    if (savedDraft) {
+      setDraftDetected({
+        doc: JSON.parse(savedDraft),
+        original: cleanDoc
+      });
+      setEditingDoc(cleanDoc); // Load server version first, but show warning banner
+    } else {
+      setEditingDoc(cleanDoc);
+      setDraftDetected(null);
+    }
     setIsNewDoc(false);
   };
 
@@ -135,7 +480,8 @@ export default function Dashboard({ user }) {
   };
 
   // security authentication check triggers
-  const triggerSaveVerification = (e) => {
+  // security authentication check triggers
+  const triggerSaveVerification = async (e) => {
     e.preventDefault();
     
     // Parse complex fields back into JSON
@@ -157,6 +503,36 @@ export default function Dashboard({ user }) {
     if (jsonError) {
       showStatus('error', jsonError);
       return;
+    }
+
+    // Block save if user is offline
+    if (!navigator.onLine) {
+      showStatus('error', 'Sin conexión. No se pueden subir cambios a la base de datos de producción.');
+      return;
+    }
+
+    // Concurrency check to avoid overwrites
+    if (!isNewDoc) {
+      try {
+        const res = await fetch(`/api/database/${selectedCollection}/${finalizedDoc._id}`);
+        if (res.ok) {
+          const serverDoc = await res.json();
+          const cleanServerDoc = { ...serverDoc };
+          delete cleanServerDoc._modelInfo;
+
+          const isConflicted = JSON.stringify(cleanServerDoc) !== JSON.stringify(originalDocState);
+          
+          if (isConflicted) {
+            setConflictModal({
+              serverDoc: cleanServerDoc,
+              userDoc: finalizedDoc
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error conducting concurrency check:', err);
+      }
     }
 
     setSecurityModal({
@@ -197,6 +573,7 @@ export default function Dashboard({ user }) {
           });
           if (!res.ok) throw new Error('Error al crear el documento');
           showStatus('success', 'Registro creado con éxito. Cambios subidos a GitHub.');
+          clearDraft(selectedCollection, null);
         } else {
           // PUT to update
           const res = await fetch(`/api/database/${selectedCollection}/${id}`, {
@@ -206,6 +583,7 @@ export default function Dashboard({ user }) {
           });
           if (!res.ok) throw new Error('Error al actualizar el documento');
           showStatus('success', 'Registro actualizado con éxito. Cambios subidos a GitHub.');
+          clearDraft(selectedCollection, id);
         }
         setEditingDoc(null);
       } else if (action === 'delete') {
@@ -232,6 +610,18 @@ export default function Dashboard({ user }) {
         <div className="bar-brand">
           <Database className="brand-icon neon-text" size={24} />
           <h1 className="brand-title">PLATUBOT <span className="rose-text">CONSOLE</span></h1>
+        </div>
+
+        <div className="network-status-wrapper">
+          {isOnline ? (
+            <span className="network-badge online">
+              <span className="pulse-dot"></span> EN LÍNEA
+            </span>
+          ) : (
+            <span className="network-badge offline">
+              <span className="pulse-dot"></span> SIN CONEXIÓN
+            </span>
+          )}
         </div>
 
         <div className="user-profile">
@@ -346,10 +736,12 @@ export default function Dashboard({ user }) {
                             .slice(0, 4)
                             .map(([key, val]) => (
                               <td key={key} className="preview-td">
-                                {typeof val === 'object' ? (
-                                  <span className="object-badge">JSON Object</span>
+                                {typeof val === 'object' && val !== null ? (
+                                  <div className="table-json-preview">
+                                    <JsonHighlighter data={val} />
+                                  </div>
                                 ) : (
-                                  String(val) || <span className="empty-cell">Nulo</span>
+                                  val === null ? <span className="empty-cell">Nulo</span> : (String(val) || <span className="empty-cell">Vacío</span>)
                                 )}
                               </td>
                             ))
@@ -379,16 +771,61 @@ export default function Dashboard({ user }) {
                   </h2>
                   <span className="count-label">Colección: {selectedCollection}</span>
                 </div>
-                <button onClick={() => setEditingDoc(null)} className="btn text-btn">
+                <button 
+                  onClick={() => {
+                    const docId = editingDoc._id || 'new';
+                    clearDraft(selectedCollection, docId);
+                    setEditingDoc(null);
+                    setDraftDetected(null);
+                  }} 
+                  className="btn text-btn"
+                >
                   <X size={18} /> Cancelar
                 </button>
               </div>
 
+              {draftDetected && (
+                <div className="draft-detected-banner">
+                  <div className="draft-banner-text">
+                    <AlertTriangle size={18} />
+                    <span>Se detectó un borrador local no guardado para este registro. ¿Deseas recuperarlo?</span>
+                  </div>
+                  <div className="draft-banner-actions">
+                    <button
+                      type="button"
+                      className="btn primary-btn draft-btn recover"
+                      onClick={() => {
+                        setEditingDoc(draftDetected.doc);
+                        setDraftDetected(null);
+                        showStatus('success', 'Borrador local restaurado con éxito.');
+                      }}
+                    >
+                      Recuperar Borrador
+                    </button>
+                    <button
+                      type="button"
+                      className="btn sec-btn draft-btn"
+                      onClick={() => {
+                        const docId = editingDoc._id || 'new';
+                        clearDraft(selectedCollection, docId);
+                        setDraftDetected(null);
+                        showStatus('success', 'Borrador local descartado.');
+                      }}
+                    >
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={triggerSaveVerification} className="editor-form">
                 <div className="form-grid">
                   {/* ID Field */}
-                  <div className="form-group span-2">
-                    <label className="input-label">_id (Identificador Único)</label>
+                  <div className="form-group span-2 form-field-card id-field-card animate-fade-in">
+                    <div className="field-label-container">
+                      <FileText size={14} className="file-icon text-rose" />
+                      <label className="input-label">_id (Identificador Único)</label>
+                    </div>
                     <input 
                       type="text" 
                       value={editingDoc._id}
@@ -403,31 +840,79 @@ export default function Dashboard({ user }) {
                   {Object.entries(editingDoc)
                     .filter(([key]) => key !== '_id' && !key.startsWith('_raw_'))
                     .map(([key, val]) => {
-                      const isComplex = typeof val === 'object';
+                      const isComplex = val !== null && typeof val === 'object';
                       const rawKey = `_raw_${key}`;
-                      const rawStringValue = editingDoc[rawKey] !== undefined 
-                        ? editingDoc[rawKey] 
-                        : (isComplex ? JSON.stringify(val, null, 2) : '');
 
                       if (isComplex) {
+                        const mode = editorModes[key] || 'visual';
+                        const setMode = (newMode) => {
+                          setEditorModes(prev => ({ ...prev, [key]: newMode }));
+                          if (newMode === 'raw' && editingDoc[rawKey] === undefined) {
+                            setEditingDoc(prev => ({
+                              ...prev,
+                              [rawKey]: JSON.stringify(val, null, 2)
+                            }));
+                          }
+                        };
+
                         return (
-                          <div key={key} className="form-group span-2">
-                            <label className="input-label">{key} (Objeto JSON / Array)</label>
-                            <textarea
-                              rows={6}
-                              value={rawStringValue}
-                              onChange={e => handleComplexFieldChange(key, e.target.value)}
-                              placeholder="{}"
-                              className="form-textarea code-font"
-                            />
-                            <span className="field-hint">Debe ser código JSON sintácticamente válido.</span>
+                          <div key={key} className="complex-field-container">
+                            <div className="complex-field-header">
+                              <label className="input-label">{key} (Estructura de Datos)</label>
+                              <div className="editor-mode-selector">
+                                <button
+                                  type="button"
+                                  className={`mode-tab-btn ${mode === 'visual' ? 'active' : ''}`}
+                                  onClick={() => setMode('visual')}
+                                >
+                                  Visual
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`mode-tab-btn ${mode === 'raw' ? 'active' : ''}`}
+                                  onClick={() => setMode('raw')}
+                                >
+                                  JSON Crudo
+                                </button>
+                              </div>
+                            </div>
+
+                            {mode === 'visual' ? (
+                              <div className="visual-editor-container">
+                                <NestedObjectEditor
+                                  path={[]}
+                                  value={val}
+                                  onChange={(path, newValue) => handleNestedFieldChange(key, path, newValue)}
+                                />
+                              </div>
+                            ) : (
+                              <div className="raw-editor-container">
+                                <div className="form-group flex-column">
+                                  <textarea
+                                    rows={8}
+                                    value={editingDoc[rawKey] !== undefined ? editingDoc[rawKey] : JSON.stringify(val, null, 2)}
+                                    onChange={e => handleComplexFieldChange(key, e.target.value)}
+                                    placeholder="{}"
+                                    className="form-textarea code-font vscode-textarea"
+                                  />
+                                  <span className="field-hint">Debe ser código JSON sintácticamente válido.</span>
+                                </div>
+                                <div className="vscode-preview-box">
+                                  <div className="preview-header">Vista Previa Formateada (VS Code)</div>
+                                  <JsonHighlighter data={editingDoc[rawKey] !== undefined ? editingDoc[rawKey] : val} />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       }
 
                       return (
-                        <div key={key} className="form-group">
-                          <label className="input-label">{key}</label>
+                        <div key={key} className="form-group form-field-card animate-fade-in">
+                          <div className="field-label-container">
+                            <FileText size={14} className="file-icon text-muted" />
+                            <label className="input-label">{key}</label>
+                          </div>
                           <input 
                             type="text" 
                             value={val}
@@ -519,7 +1004,7 @@ export default function Dashboard({ user }) {
       )}
 
       {/* Styled JSX */}
-      <style jsx>{`
+      <style jsx global>{`
         .dashboard-container {
           min-height: 100vh;
           display: flex;
@@ -810,6 +1295,7 @@ export default function Dashboard({ user }) {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          vertical-align: middle !important;
         }
 
         .crud-table tr:hover td {
@@ -1219,7 +1705,696 @@ export default function Dashboard({ user }) {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.6; }
         }
+
+        /* VS Code and Premium JSON Highlighting Styles */
+        .vscode-editor-pre {
+          background: #1e1e1e !important;
+          color: #d4d4d4 !important;
+          padding: 16px;
+          border-radius: 8px;
+          border: 1px solid #3c3c3c;
+          overflow: auto;
+          max-height: 300px;
+          margin: 0;
+          font-family: 'JetBrains Mono', monospace !important;
+          font-size: 0.85rem;
+          line-height: 1.5;
+          text-align: left;
+        }
+
+        .vscode-editor-pre code {
+          font-family: 'JetBrains Mono', monospace !important;
+        }
+
+        .json-key {
+          color: #9cdcfe !important; /* Light blue */
+          font-weight: 500;
+        }
+
+        .json-string {
+          color: #ce9178 !important; /* Orange-brown */
+        }
+
+        .json-number {
+          color: #b5cea8 !important; /* Light green */
+        }
+
+        .json-boolean {
+          color: #569cd6 !important; /* Blue */
+        }
+
+        .json-null {
+          color: #569cd6 !important; /* Blue */
+        }
+
+        .table-json-preview {
+          max-height: 80px;
+          max-width: 250px;
+          overflow: auto;
+          font-family: 'JetBrains Mono', monospace !important;
+          border-radius: 4px;
+          background: #0f0f0f;
+          border: 1px solid rgba(255, 42, 95, 0.08);
+          box-shadow: inset 0 0 6px rgba(0,0,0,0.8);
+          white-space: normal !important; /* Override parent nowrap */
+        }
+
+        .table-json-preview .vscode-editor-pre {
+          background: transparent !important;
+          border: none;
+          padding: 6px 10px;
+          font-size: 0.75rem;
+          max-height: 70px;
+          white-space: pre !important; /* Ensure multi-line pre formatting */
+        }
+
+        /* Complex Field Container and Modes */
+        .complex-field-container {
+          grid-column: span 2;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 8px;
+        }
+
+        .complex-field-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+
+        .editor-mode-selector {
+          display: flex;
+          background: #141414;
+          padding: 3px;
+          border-radius: 6px;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .mode-tab-btn {
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 0.8rem;
+          font-weight: 600;
+          padding: 6px 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: var(--transition-smooth);
+        }
+
+        .mode-tab-btn:hover {
+          color: #ffffff;
+        }
+
+        .mode-tab-btn.active {
+          background: var(--rose-dim);
+          color: var(--rose-neon);
+          border: 1px solid rgba(255, 42, 95, 0.2);
+        }
+
+        /* Visual Form Editor Styles */
+        .visual-editor-container {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .nested-object-box {
+          border: 1px solid rgba(255, 255, 255, 0.04);
+          border-left: 3px solid var(--rose-neon);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.15);
+          margin-bottom: 12px;
+          width: 100%;
+          text-align: left;
+          overflow: hidden;
+          transition: var(--transition-smooth);
+        }
+
+        .nested-object-box:hover {
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .nested-object-box.level-0 {
+          border-left-color: var(--rose-neon);
+          background: rgba(255, 42, 95, 0.01);
+        }
+        
+        .nested-object-box.level-1 {
+          border-left-color: #38bdf8; /* sky blue */
+          background: rgba(56, 189, 248, 0.01);
+        }
+
+        .nested-object-box.level-2 {
+          border-left-color: #a855f7; /* purple */
+          background: rgba(168, 85, 247, 0.01);
+        }
+
+        .nested-object-header {
+          padding: 12px 16px;
+          background: rgba(255, 255, 255, 0.01);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+          font-size: 0.8rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          color: var(--text-secondary);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          cursor: pointer;
+          user-select: none;
+          transition: var(--transition-smooth);
+        }
+
+        .nested-object-header:hover {
+          background: rgba(255, 255, 255, 0.03);
+          color: #ffffff;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .folder-chevron {
+          color: var(--text-muted);
+          transition: transform 0.2s ease;
+        }
+
+        .folder-icon-main {
+          color: var(--text-muted);
+          transition: var(--transition-smooth);
+        }
+
+        .folder-icon-main.folder-open {
+          color: var(--rose-neon);
+        }
+
+        .level-1 .folder-icon-main.folder-open {
+          color: #38bdf8;
+        }
+
+        .level-2 .folder-icon-main.folder-open {
+          color: #a855f7;
+        }
+
+        .nested-object-title {
+          font-size: 0.8rem;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+        }
+
+        .folder-type-badge {
+          font-size: 0.65rem;
+          font-weight: 700;
+          padding: 2px 6px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 4px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+        }
+
+        .nested-object-body {
+          padding: 16px 16px 16px 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          position: relative;
+        }
+
+        /* Connecting vertical lines matching level colors */
+        .nested-object-body::before {
+          content: '';
+          position: absolute;
+          left: 12px;
+          top: 0;
+          bottom: 16px;
+          width: 1px;
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .nested-object-box.level-0 > .nested-object-body::before {
+          background: rgba(255, 42, 95, 0.12);
+        }
+
+        .nested-object-box.level-1 > .nested-object-body::before {
+          background: rgba(56, 189, 248, 0.12);
+        }
+
+        .nested-object-box.level-2 > .nested-object-body::before {
+          background: rgba(168, 85, 247, 0.12);
+        }
+
+        .nested-field-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          font-size: 0.85rem;
+          width: 100%;
+        }
+
+        .nested-field-row.checkbox-row {
+          padding: 2px 0;
+        }
+
+        .field-label-container {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 140px;
+          color: var(--text-secondary);
+        }
+
+        .file-icon {
+          color: var(--text-muted);
+          flex-shrink: 0;
+        }
+
+        .nested-field-label {
+          font-weight: 500;
+          color: var(--text-secondary);
+          text-align: left;
+        }
+
+        .field-input-wrapper {
+          flex: 1;
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+        }
+
+        .nested-input {
+          width: 100% !important;
+          padding: 8px 12px !important;
+          font-size: 0.85rem !important;
+          background: #090909 !important;
+          border-color: rgba(255, 255, 255, 0.06) !important;
+        }
+
+        .nested-input:focus {
+          border-color: var(--rose-neon) !important;
+          background: #0e0e0e !important;
+        }
+
+        /* Premium Form Field & Primitive Cards */
+        .editor-field-card {
+          background: rgba(255, 255, 255, 0.015);
+          border: 1px solid rgba(255, 255, 255, 0.04);
+          border-radius: 8px;
+          padding: 12px 16px;
+          transition: var(--transition-smooth);
+          width: 100%;
+        }
+
+        .editor-field-card:hover {
+          background: rgba(255, 255, 255, 0.03);
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .primitive-card {
+          border-left: 2px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .primitive-card:hover {
+          border-left-color: var(--rose-neon);
+          box-shadow: 0 4px 20px rgba(255, 42, 95, 0.05);
+        }
+
+        .level-1 .primitive-card:hover {
+          border-left-color: #38bdf8;
+        }
+
+        .level-2 .primitive-card:hover {
+          border-left-color: #a855f7;
+        }
+
+        .form-field-card {
+          background: rgba(255, 255, 255, 0.015);
+          border: 1px solid rgba(255, 255, 255, 0.04);
+          border-left: 2px solid rgba(255, 255, 255, 0.15);
+          border-radius: 8px;
+          padding: 14px 16px;
+          transition: var(--transition-smooth);
+        }
+
+        .form-field-card:hover {
+          background: rgba(255, 255, 255, 0.03);
+          border-color: rgba(255, 255, 255, 0.1);
+          border-left-color: var(--rose-neon);
+          box-shadow: 0 4px 20px rgba(255, 42, 95, 0.05);
+        }
+
+        .id-field-card {
+          border-left-color: var(--rose-neon);
+        }
+
+        /* Switch Toggle Premium Button */
+        .toggle-switch {
+          position: relative;
+          display: inline-block;
+          width: 42px;
+          height: 22px;
+        }
+
+        .toggle-switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        .toggle-slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #141414;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          transition: .3s cubic-bezier(0.16, 1, 0.3, 1);
+          border-radius: 22px;
+        }
+
+        .toggle-slider:before {
+          position: absolute;
+          content: "";
+          height: 14px;
+          width: 14px;
+          left: 3px;
+          bottom: 3px;
+          background-color: #707070;
+          transition: .3s cubic-bezier(0.16, 1, 0.3, 1);
+          border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+          background-color: rgba(255, 42, 95, 0.08);
+          border-color: var(--rose-neon);
+          box-shadow: 0 0 10px rgba(255, 42, 95, 0.15);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+          transform: translateX(20px);
+          background-color: var(--rose-neon);
+          box-shadow: 0 0 8px var(--rose-neon);
+        }
+
+        /* Raw Editor Split */
+        .raw-editor-container {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+          .raw-editor-container {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .vscode-textarea {
+          background: #1e1e1e !important;
+          border-color: #3c3c3c !important;
+          color: #d4d4d4 !important;
+          font-family: 'JetBrains Mono', monospace !important;
+          font-size: 0.85rem !important;
+          text-align: left;
+        }
+
+        .vscode-textarea:focus {
+          border-color: #007acc !important; /* VS Code blue focus */
+          box-shadow: 0 0 10px rgba(0, 122, 204, 0.25) !important;
+        }
+
+        .vscode-preview-box {
+          display: flex;
+          flex-direction: column;
+          border: 1px solid #3c3c3c;
+          border-radius: 8px;
+          background: #1e1e1e;
+          overflow: hidden;
+        }
+
+        .preview-header {
+          font-size: 0.75rem;
+          font-weight: 600;
+          padding: 8px 12px;
+          background: #252526;
+          border-bottom: 1px solid #2d2d2d;
+          color: var(--text-secondary);
+          text-align: left;
+        }
+
+        /* Network Status Badge */
+        .network-status-wrapper {
+          display: flex;
+          align-items: center;
+          margin-right: 16px;
+        }
+
+        .network-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          letter-spacing: 1px;
+          padding: 6px 12px;
+          border-radius: 20px;
+          text-transform: uppercase;
+        }
+
+        .network-badge.online {
+          background: rgba(46, 213, 115, 0.08);
+          color: #2ed573;
+          border: 1px solid rgba(46, 213, 115, 0.2);
+          box-shadow: 0 0 10px rgba(46, 213, 115, 0.15);
+        }
+
+        .network-badge.offline {
+          background: rgba(255, 71, 87, 0.08);
+          color: #ff4757;
+          border: 1px solid rgba(255, 71, 87, 0.2);
+          box-shadow: 0 0 10px rgba(255, 71, 87, 0.15);
+          animation: pulse 2s infinite;
+        }
+
+        .network-badge .pulse-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+
+        .network-badge.online .pulse-dot {
+          background: #2ed573;
+          box-shadow: 0 0 8px #2ed573;
+        }
+
+        .network-badge.offline .pulse-dot {
+          background: #ff4757;
+          box-shadow: 0 0 8px #ff4757;
+        }
+
+        /* Draft Warning Banner */
+        .draft-detected-banner {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: rgba(255, 165, 0, 0.08);
+          border: 1px solid rgba(255, 165, 0, 0.3);
+          border-radius: 8px;
+          padding: 14px 20px;
+          margin-bottom: 24px;
+          gap: 16px;
+          flex-wrap: wrap;
+          animation: fadeIn 0.4s ease;
+          width: 100%;
+        }
+
+        .draft-banner-text {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 0.85rem;
+          color: #ffa500;
+          font-weight: 500;
+          text-align: left;
+        }
+
+        .draft-banner-actions {
+          display: flex;
+          gap: 12px;
+        }
+
+        .draft-btn {
+          font-size: 0.75rem !important;
+          padding: 6px 12px !important;
+        }
+
+        .draft-btn.recover {
+          background: #ffa500 !important;
+          color: #000000 !important;
+          font-weight: 700;
+        }
+
+        .draft-btn.recover:hover {
+          background: #ffb732 !important;
+          box-shadow: 0 0 15px rgba(255, 165, 0, 0.35);
+        }
+
+        /* Array Box Visual Customization */
+        .array-box {
+          border-left-style: dashed !important;
+        }
+
+        .array-item-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background: rgba(255, 255, 255, 0.015);
+          border: 1px solid rgba(255, 255, 255, 0.03);
+          padding: 12px;
+          border-radius: 8px;
+          width: 100%;
+        }
+
+        .array-item-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .array-item-delete-btn {
+          background: rgba(255, 71, 87, 0.05);
+          border: 1px solid rgba(255, 71, 87, 0.15);
+          color: #ff4757;
+          border-radius: 6px;
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: var(--transition-smooth);
+        }
+
+        .array-item-delete-btn:hover {
+          background: #ff4757;
+          color: #ffffff;
+          box-shadow: 0 0 10px rgba(255, 71, 87, 0.4);
+        }
+
+        .add-array-item-btn {
+          align-self: flex-start;
+          margin-top: 8px;
+          border-style: dashed !important;
+        }
+
+        /* Conflict Modal Diff Boxes */
+        .conflict-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-top: 16px;
+          text-align: left;
+        }
+
+        @media (max-width: 768px) {
+          .conflict-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .conflict-column {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .conflict-title {
+          font-size: 0.8rem;
+        }
+
+        .field-input-wrapper .nested-input {
+          width: 100% !important;
+          flex: 1;
+        }
       `}</style>
+
+      {/* CONCURRENCY CONFLICT MODAL */}
+      {conflictModal && (
+        <div className="modal-overlay">
+          <div className="modal-content glass-panel animate-fade-in" style={{ maxWidth: '800px', width: '90%' }}>
+            <div className="modal-header">
+              <AlertTriangle className="warn-icon neon-text" size={32} />
+              <h2 className="modal-title uppercase-title text-rose">Conflicto de Edición Detectado</h2>
+            </div>
+            
+            <div className="modal-body text-left">
+              <p className="warn-text">
+                ¡Atención! Otro administrador ha modificado este registro en la base de datos de producción mientras tú lo editabas localmente.
+              </p>
+              <p className="warn-desc">
+                Para evitar corrupción de archivos y sobreescrituras accidentales, compara las diferencias a continuación:
+              </p>
+
+              <div className="conflict-grid">
+                <div className="conflict-column">
+                  <span className="conflict-title server">En el Servidor (Nuevos cambios)</span>
+                  <JsonHighlighter data={conflictModal.serverDoc} />
+                </div>
+                <div className="conflict-column">
+                  <span className="conflict-title user">Tus Cambios Locales (Borrador)</span>
+                  <JsonHighlighter data={conflictModal.userDoc} />
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                type="button" 
+                onClick={() => {
+                  setConflictModal(null);
+                  setEditingDoc(null);
+                  setDraftDetected(null);
+                  showStatus('success', 'Operación cancelada. Se recargará el listado.');
+                  fetchDocuments(selectedCollection);
+                }} 
+                className="btn sec-btn"
+              >
+                Descartar Mis Cambios y Recargar
+              </button>
+              <button 
+                type="button" 
+                onClick={() => {
+                  const targetDoc = conflictModal.userDoc;
+                  setConflictModal(null);
+                  setSecurityModal({
+                    isOpen: true,
+                    action: 'save',
+                    targetData: targetDoc,
+                    confirmedChecked: false,
+                    inputVerification: ''
+                  });
+                }}
+                className="btn danger-glow-btn"
+              >
+                Forzar Sobreescritura
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
