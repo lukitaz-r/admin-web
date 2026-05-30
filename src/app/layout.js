@@ -1,8 +1,9 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Platubot Admin - Panel de Control Premium",
-  description: "Administrador de base de datos integrado para Platubot con autenticación de Discord OAuth2 de alta seguridad y diseño futurista.",
+  title: "Platubot Admin — Panel de Control",
+  description:
+    "Panel de administración de Platubot: gestión de base de datos, logs de VPS y terminal controlada con autenticación Discord OAuth2.",
 };
 
 export const viewport = {
@@ -13,11 +14,7 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
-      <body id="platubot-root">
-        <div className="bg-glow"></div>
-        <div className="bg-glow-bottom"></div>
-        {children}
-      </body>
+      <body id="platubot-root">{children}</body>
     </html>
   );
 }
